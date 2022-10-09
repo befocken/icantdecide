@@ -1,0 +1,272 @@
+<html>
+    <head>
+        <title>I Cannot Decide! - Decision Helper</title>
+        <style>
+            body {
+                width: 60%;
+                margin: 50px auto;
+                font-family: 'Trebuchet MS', sans-serif;
+            }
+
+            .subheading {
+                font-size: 30px;
+                text-align: center;
+            }
+
+            h1 {
+                font-size: 45px;
+            }
+
+            h2 {
+                font-size: 35px;
+                display: flex;
+            }
+
+            h2 input {
+                flex: auto;
+                text-align: center;
+                border: none;
+                border-bottom: 1px solid #d3d3d3;
+                padding: 5px 0;
+                font-size: 35px;
+            }
+
+            h2 input:focus {
+                outline: none;
+            }
+    
+            h1, h2 {
+                text-align: center;
+            }
+
+            .decision {
+                margin-top: 70px;
+            }
+
+            .decision table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            .decision table thead th {
+                padding-bottom: 25px;
+            }
+
+            .decision .toggle {
+                width: 60px;
+                display: inline-block;
+            }
+
+            .decision .toggle:hover {
+                cursor: pointer;
+            }
+
+            .decision[data-extended="false"] table {
+                display: none;
+            }
+
+            .decision table tr td {
+                padding: 0;
+            }
+
+            .decision table tr td:first-child:not(.summary), .decision table th:first-child:not(.summary) {
+                border-right: 1px solid grey;
+            }
+
+            .decision table td label {
+                padding: 10px;
+            }
+
+            .decision table td label input {
+                margin-left: 5px;
+            }
+
+            .decision table .arguments li button {
+                padding: 0 7px 4px 7px;
+                margin: 0 4px;
+                float: right;
+            }
+
+            .decision table .arguments li {
+                margin: 5px 0;
+            }
+
+            .decision table .summary {
+                text-align: center;
+                padding: 20px 0;
+                font-size: 20px;
+            }
+
+            .decision table .summary .win {
+                color: #3ec43e;
+            }
+
+            .decision table .summary .lose {
+                color: #c43e3e;
+            }
+
+            .decision table .summary .draw {
+                color: #c4c43e;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>I cannot decide</h1>
+        <div class="subheading">Decision Helper</div>
+        <div id="decisions">
+        </div>
+        <div>
+            <button id="add-decision">Add Decision</button>
+        </div>
+    </body>
+</html>
+
+<script>
+    const decisions = JSON.parse(localStorage.getItem('decisions')) ?? [{id: 1, pro: [], contra: [], title: '', extended: true}];
+    const decisionsContainer = document.getElementById('decisions');
+    const addDecisionButton = document.getElementById('add-decision');
+    const updateSuggestedDecision = [];
+
+    function triggerSave() {
+        localStorage.setItem('decisions', JSON.stringify(decisions));
+    }
+
+    function notifyChanges(decisionId) {
+        triggerSave();
+
+        if (updateSuggestedDecision.includes(decisionId)) {
+            decide(decisionId);
+        }
+
+        renderArrayInto(decisionId, 'pro');
+        renderArrayInto(decisionId, 'contra');
+    }
+
+    function getNewId(list) {
+        return Math.max(0, ...list.map(e => e.id)) + 1;
+    }
+
+    function addTo(decisionId, side, title, weight) {
+        const list = decisions.find(d => d.id === decisionId)[side];
+
+        list.push({title: title, id: getNewId(list), weight: weight});
+        notifyChanges(decisionId);
+    }
+
+    function removeFrom(decisionId, side, entry) {
+        const list = decisions.find(d => d.id === decisionId)[side];
+
+        list.splice(list.indexOf(list.find(e => e.id === entry.id)), 1);
+        notifyChanges(decisionId);
+    }
+
+    function renderArrayInto(decisionId, side) {
+        const container = document.querySelector(`div.decision[data-decision-id="${decisionId}"] .arguments-${side}`);
+        const list = decisions.find(d => d.id === decisionId)[side];
+
+        container.innerHTML = '';
+
+        list.forEach(e => {
+            const liItem = document.createElement('li');
+            const span = document.createElement('span');
+            const removeButton = document.createElement('button');
+
+            span.innerText = `${e.title} (${e.weight})`;
+            removeButton.addEventListener('click', (evt) => removeFrom(decisionId, side, e));
+            removeButton.innerText = 'x';
+            removeButton.title = 'Entfernen';
+            removeButton.tabIndex = -1;
+            liItem.appendChild(span);
+            liItem.appendChild(removeButton);
+            container.appendChild(liItem);
+        });
+    }
+
+    function addAddItemListener(decisionId, side) {
+        const decisionContainer = document.querySelector(`div.decision[data-decision-id="${decisionId}"]`);
+        const list = decisions.find(d => d.id === decisionId)[side];
+        const input = decisionContainer.querySelector(`input.add-${side}`);
+        const inputWeight = decisionContainer.querySelector(`input.add-weight-${side}`);
+
+        [input, inputWeight].forEach(i => {
+            i.addEventListener('keypress', (evt) => {
+                if (evt.key === 'Enter' && input.value.trim() !== '') {
+                    addTo(decisionId, side, input.value, inputWeight.value.trim() !== '' ? inputWeight.value : 1);
+                    input.value = '';
+                    inputWeight.value = 1;
+                    input.focus();
+                }
+            });
+        });
+    }
+
+    function decide(decisionId) {
+        const decisionContainer = document.querySelector(`div.decision[data-decision-id="${decisionId}"]`);
+        const summaryRow = decisionContainer.querySelector('.summary');
+        const d = decisions.find(d => d.id === decisionId);
+
+        const proSum = d.pro.map(p => parseInt(p.weight)).reduce((currSum, currVal) => currSum + currVal, 0);
+        const ContraSum = d.contra.map(c => parseInt(c.weight)).reduce((currSum, currVal) => currSum + currVal, 0);
+        const suggestedDecision = proSum > ContraSum
+            ? `<span class="win">Pro</span> (${proSum}) wins over <span class="lose">Contra</span> (${ContraSum})`
+            : ContraSum > proSum
+                ? `<span class="win">Contra</span> (${ContraSum}) wins over <span class="lose">Pro</span> (${proSum})`
+                : `<span class="draw">It's a Draw!</span>`;
+        
+        summaryRow.innerHTML = suggestedDecision;
+    }
+
+    function renderDecision(d) {
+        const listRow = ['pro', 'contra'].map(e => `<td><ul class="arguments arguments-${e}"></ul></td>`).join('');
+        const addRow = ['pro', 'contra'].map(e => `<td><label>Title: <input class="add-argument add-${e}" type="text" /></label><label>Weight: <input class="add-argument-weight add-weight-${e}" type="number" min="0" max="9" size="2" value="1" /></label></td>`).join('');
+        const thead = `<thead><th>Pro</th><th>Contra</th></thead>`;
+        const tbody = `<tbody><tr>${listRow}</tr><tr>${addRow}</tr><tr class="summary-row"><td colspan="2" class="summary"/><button>Decide</button></tr></tbody>`;
+        const table = `<table>${thead}${tbody}</table>`;
+        const heading = `<h2><input class="decision-title" type="text" value="${d.title ?? ''}" placeholder="What can't you decide?" /><span class="toggle" title="${d.extended === true ? 'Minimize' : 'Extend'}">${d.extended === true ? '-' : '+'}</span></h2>`;
+
+        const decisionContainer = document.createElement('div');
+        
+        decisionContainer.classList.add('decision');
+        decisionContainer.setAttribute('data-decision-id', d.id);
+        decisionContainer.setAttribute('data-extended', d.extended === true);
+        decisionContainer.innerHTML = `${heading}${table}`;
+
+        decisionsContainer.appendChild(decisionContainer);
+
+        addAddItemListener(d.id, 'pro');
+        addAddItemListener(d.id, 'contra');
+
+        notifyChanges(d.id);
+
+        const decisionTitle = decisionContainer.querySelector(`.decision-title`);
+        const toggle = decisionContainer.querySelector(`.toggle`);
+        const decideButton = decisionContainer.querySelector(`.summary-row button`);
+
+        decisionTitle.addEventListener('blur', (evt) => {
+            d.title = decisionTitle.value;
+            triggerSave();
+        });
+        toggle.addEventListener('click', (evt) => {
+            d.extended = !(d.extended === true);
+            decisionContainer.setAttribute('data-extended', d.extended);
+            toggle.innerText = d.extended ? '-' : '+';
+            toggle.title = d.extended ? 'Minimize' : 'Extend';
+            
+            triggerSave();
+        });
+        decideButton.addEventListener('click', (evt) => {
+            decideButton.style.display = 'none';
+            updateSuggestedDecision.push(d.id);
+            decide(d.id);
+        });
+    }
+
+    decisions.forEach(renderDecision);
+
+    addDecisionButton.addEventListener('click', (e) => {
+        const newDecision = {id: getNewId(decisions), pro: [], contra: [], title: '', extended: true};
+
+        decisions.push(newDecision);
+        renderDecision(newDecision);
+    });
+</script>
