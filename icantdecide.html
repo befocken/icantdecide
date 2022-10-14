@@ -160,6 +160,15 @@
         notifyChanges(decisionId);
     }
 
+    function edit(decisionId, side, id, newTitle, newWeight) {
+        const list = decisions.find(d => d.id === decisionId)[side];
+        const argument = list.find(a => a.id === id);
+
+        argument.title = newTitle;
+        argument.weight = newWeight;
+        notifyChanges(decisionId);
+    }
+
     function renderArrayInto(decisionId, side) {
         const container = document.querySelector(`div.decision[data-decision-id="${decisionId}"] .arguments-${side}`);
         const list = decisions.find(d => d.id === decisionId)[side];
@@ -172,6 +181,21 @@
             const removeButton = document.createElement('button');
 
             span.innerText = `${e.title} (${e.weight})`;
+            span.title = `double click to edit`;
+            span.addEventListener('dblclick', (evt) => {
+                span.innerHTML = `<input type="text" value="${e.title}" /><input type="number" min="0" max="9" size="2" value="${e.weight}" />`;
+                span.addEventListener('keyup', (evt) => {
+                    if (evt.key === 'Enter') {
+                        evt.preventDefault();
+                        evt.stopPropagation();
+
+                        const titleInput = span.querySelector('input[type="text"]');
+                        const weightInput = span.querySelector('input[type="number"]');
+
+                        edit(decisionId, side, e.id, titleInput.value, weightInput.value);
+                    }
+                });
+            });
             removeButton.addEventListener('click', (evt) => removeFrom(decisionId, side, e));
             removeButton.innerText = 'x';
             removeButton.title = 'Entfernen';
